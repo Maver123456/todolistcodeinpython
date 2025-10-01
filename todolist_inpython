@@ -1,5 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
+
 import json
 import os
 from datetime import datetime
@@ -16,6 +17,7 @@ def load_tasks():
 def save_tasks():
     with open(TODO_FILE, "w") as f:
         json.dump(tasks, f, indent=4)
+
 
     listbox.delete(0, tk.END)
     for idx, task in enumerate(tasks):
