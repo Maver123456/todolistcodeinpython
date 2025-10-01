@@ -19,6 +19,172 @@ def save_tasks():
         json.dump(tasks, f, indent=4)
 
 
+def show_tasks(tasks, filter_type="all"):
+    filtered = []
+    if filter_type == "all":
+        filtered = tasks
+    elif filter_type == "pending":
+        filtered = [t for t in tasks if not t["done"]]
+    elif filter_type == "completed":
+        filtered = [t for t in tasks if t["done"]]
+    
+    if not filtered:
+        print("\nNo tasks to show.\n")
+        return
+    
+    print("\nYour Tasks:")
+    for idx, task in enumerate(filtered, start=1):
+        status = "✅" if task["done"] else "❌"
+        priority = task.get("priority", "Medium")
+        due = task.get("due_date", "N/A")
+        print(f"{idx}. {task['title']} [{status}] - Priority: {priority} - Due: {due}")
+    print()
+
+def add_task(tasks):
+    title = input("Enter task title: ").strip()
+    if not title:
+        print("Task title cannot be empty.\n")
+        return
+    
+    priority = input("Enter priority (High/Medium/Low, default Medium): ").strip().capitalize()
+    if priority not in ["High", "Medium", "Low"]:
+        priority = "Medium"
+    
+    due_date = input("Enter due date (YYYY-MM-DD) or leave blank: ").strip()
+    if due_date:
+        try:
+            datetime.strptime(due_date, "%Y-%m-%d")
+        except ValueError:
+            print("Invalid date format. Skipping due date.")
+            due_date = "N/A"
+    else:
+        due_date = "N/A"
+    
+    tasks.append({"title": title, "done": False, "priority": priority, "due_date": due_date})
+    print(f"Task '{title}' added!\n")
+
+def update_task(tasks):
+    show_tasks(tasks)
+    if not tasks:
+        return
+    try:
+        idx = int(input("Enter task number to toggle done/undone: "))
+        if 1 <= idx <= len(tasks):
+            tasks[idx-1]["done"] = not tasks[idx-1]["done"]
+            status = "done" if tasks[idx-1]["done"] else "not done"
+            print(f"Task '{tasks[idx-1]['title']}' marked as {status}.\n")
+        else:
+            print("Invalid task number.\n")
+    except ValueError:
+        print("Enter a valid number.\n")
+
+def edit_task(tasks):
+    show_tasks(tasks)
+    if not tasks:
+        return
+    try:
+        idx = int(input("Enter task number to edit: "))
+        if 1 <= idx <= len(tasks):
+            task = tasks[idx-1]
+            new_title = input(f"Enter new title (leave blank to keep '{task['title']}'): ").strip()
+            if new_title:
+                task['title'] = new_title
+            
+            new_priority = input(f"Enter new priority (High/Medium/Low, leave blank to keep '{task['priority']}'): ").strip().capitalize()
+            if new_priority in ["High", "Medium", "Low"]:
+                task['priority'] = new_priority
+            
+            new_due = input(f"Enter new due date (YYYY-MM-DD, leave blank to keep '{task['due_date']}'): ").strip()
+            if new_due:
+                try:
+                    datetime.strptime(new_due, "%Y-%m-%d")
+                    task['due_date'] = new_due
+                except ValueError:
+                    print("Invalid date format. Keeping old due date.")
+            print("Task updated successfully!\n")
+        else:
+            print("Invalid task number.\n")
+    except ValueError:
+        print("Enter a valid number.\n")
+
+def delete_task(tasks):
+    show_tasks(tasks)
+    if not tasks:
+        return
+    try:
+        idx = int(input("Enter task number to delete: "))
+        if 1 <= idx <= len(tasks):
+            removed = tasks.pop(idx-1)
+            print(f"Task '{removed['title']}' deleted!\n")
+        else:
+            print("Invalid task number.\n")
+    except ValueError:
+        print("Enter a valid number.\n")
+
+def search_tasks(tasks):
+    keyword = input("Enter keyword to search: ").strip().lower()
+    results = [t for t in tasks if keyword in t['title'].lower()]
+    if results:
+        print("\nSearch Results:")
+        for idx, task in enumerate(results, start=1):
+            status = "✅" if task["done"] else "❌"
+            print(f"{idx}. {task['title']} [{status}] - Priority: {task['priority']} - Due: {task['due_date']}")
+        print()
+    else:
+        print("No matching tasks found.\n")
+
+def clear_tasks(tasks):
+    confirm = input("Are you sure you want to delete ALL tasks? (y/n): ").lower()
+    if confirm == "y":
+        tasks.clear()
+        print("All tasks cleared!\n")
+
+def main():
+    tasks = load_tasks()
+    while True:
+        print("==== Enhanced To-Do List Manager ====")
+        print("1. View All Tasks")
+        print("2. View Pending Tasks")
+        print("3. View Completed Tasks")
+        print("4. Add Task")
+        print("5. Update Task Status")
+        print("6. Edit Task")
+        print("7. Delete Task")
+        print("8. Search Task")
+        print("9. Clear All Tasks")
+        print("10. Exit")
+        choice = input("Enter your choice (1-10): ").strip()
+
+        if choice == "1":
+            show_tasks(tasks, "all")
+        elif choice == "2":
+            show_tasks(tasks, "pending")
+        elif choice == "3":
+            show_tasks(tasks, "completed")
+        elif choice == "4":
+            add_task(tasks)
+        elif choice == "5":
+            update_task(tasks)
+        elif choice == "6":
+            edit_task(tasks)
+        elif choice == "7":
+            delete_task(tasks)
+        elif choice == "8":
+            search_tasks(tasks)
+        elif choice == "9":
+            clear_tasks(tasks)
+        elif choice == "10":
+            save_tasks(tasks)
+            print("Tasks saved. Goodbye!")
+            break
+        else:
+            print("Invalid choice. Enter a number 1-10.\n")
+
+if __name__ == "__main__":
+    main()
+
+=======
+
     listbox.delete(0, tk.END)
     for idx, task in enumerate(tasks):
         if keyword.lower() in task["title"].lower():
