@@ -1,197 +1,171 @@
 import tkinter as tk
 from tkinter import messagebox, simpledialog
-
 import json
 import os
 from datetime import datetime
 
+# ---------------- Constants ---------------- #
 TODO_FILE = "todo_list.json"
+PRIORITY_COLOR = {"High": "red", "Medium": "orange", "Low": "green"}
+DARK_BG, DARK_FG = "#2e2e2e", "#f0f0f0"
+LIGHT_BG, LIGHT_FG = "#ffffff", "#000000"
 
-
-def load_tasks():
+# ---------------- Data Persistence ---------------- #
+def load_tasks() -> list:
+    """Load tasks from JSON file."""
     if os.path.exists(TODO_FILE):
         with open(TODO_FILE, "r") as f:
             return json.load(f)
     return []
 
 def save_tasks():
+    """Save tasks to JSON file."""
     with open(TODO_FILE, "w") as f:
         json.dump(tasks, f, indent=4)
 
+# ---------------- UI Functions ---------------- #
+def refresh_listbox(filter_type="all", sort_by=None):
+    """Refresh the listbox based on filter and sorting."""
+    listbox.delete(0, tk.END)
+    filtered_tasks = tasks.copy()
 
-def show_tasks(tasks, filter_type="all"):
-    filtered = []
-    if filter_type == "all":
-        filtered = tasks
-    elif filter_type == "pending":
-        filtered = [t for t in tasks if not t["done"]]
+    # Filter
+    if filter_type == "pending":
+        filtered_tasks = [t for t in tasks if not t["done"]]
     elif filter_type == "completed":
-        filtered = [t for t in tasks if t["done"]]
-    
-    if not filtered:
-        print("\nNo tasks to show.\n")
-        return
-    
-    print("\nYour Tasks:")
-    for idx, task in enumerate(filtered, start=1):
+        filtered_tasks = [t for t in tasks if t["done"]]
+
+    # Sort
+    if sort_by == "priority":
+        filtered_tasks.sort(key=lambda t: {"High": 0, "Medium": 1, "Low": 2}[t.get("priority", "Medium")])
+    elif sort_by == "due_date":
+        filtered_tasks.sort(key=lambda t: t.get("due_date", "9999-12-31"))
+
+    # Insert tasks
+    for idx, task in enumerate(filtered_tasks):
         status = "✅" if task["done"] else "❌"
         priority = task.get("priority", "Medium")
         due = task.get("due_date", "N/A")
-        print(f"{idx}. {task['title']} [{status}] - Priority: {priority} - Due: {due}")
-    print()
+        text = f"{idx+1}. {task['title']} [{status}] - Priority: {priority} - Due: {due}"
+        listbox.insert(tk.END, text)
 
-def add_task(tasks):
-    title = input("Enter task title: ").strip()
-    if not title:
-        print("Task title cannot be empty.\n")
-        return
-    
-    priority = input("Enter priority (High/Medium/Low, default Medium): ").strip().capitalize()
-    if priority not in ["High", "Medium", "Low"]:
-        priority = "Medium"
-    
-    due_date = input("Enter due date (YYYY-MM-DD) or leave blank: ").strip()
+        # Highlight overdue
+        color = PRIORITY_COLOR.get(priority, "black")
+        if due != "N/A" and not task["done"]:
+            try:
+                if datetime.strptime(due, "%Y-%m-%d") < datetime.now():
+                    color = "red"
+            except ValueError:
+                pass
+        listbox.itemconfig(tk.END, {'fg': color})
+
+def toggle_dark_mode():
+    """Switch between light and dark themes."""
+    global dark_mode
+    dark_mode = not dark_mode
+    bg, fg = (DARK_BG, DARK_FG) if dark_mode else (LIGHT_BG, LIGHT_FG)
+    root.configure(bg=bg)
+    listbox.configure(bg=bg, fg=fg)
+    frame.configure(bg=bg)
+    for child in frame.winfo_children():
+        child.configure(bg=bg, fg=fg)
+    refresh_listbox()
+
+# ---------------- Task Operations ---------------- #
+def add_task():
+    """Add a new task via dialog prompts."""
+    title = simpledialog.askstring("Task Title", "Enter task title:")
+    if not title: return
+    priority = simpledialog.askstring("Priority", "Enter priority (High/Medium/Low):", initialvalue="Medium")
+    if priority not in ["High", "Medium", "Low"]: priority = "Medium"
+    due_date = simpledialog.askstring("Due Date", "Enter due date (YYYY-MM-DD) or leave blank:")
     if due_date:
         try:
             datetime.strptime(due_date, "%Y-%m-%d")
         except ValueError:
-            print("Invalid date format. Skipping due date.")
+            messagebox.showwarning("Warning", "Invalid date format. Using N/A.")
             due_date = "N/A"
     else:
         due_date = "N/A"
-    
     tasks.append({"title": title, "done": False, "priority": priority, "due_date": due_date})
-    print(f"Task '{title}' added!\n")
+    refresh_listbox()
 
-def update_task(tasks):
-    show_tasks(tasks)
-    if not tasks:
-        return
-    try:
-        idx = int(input("Enter task number to toggle done/undone: "))
-        if 1 <= idx <= len(tasks):
-            tasks[idx-1]["done"] = not tasks[idx-1]["done"]
-            status = "done" if tasks[idx-1]["done"] else "not done"
-            print(f"Task '{tasks[idx-1]['title']}' marked as {status}.\n")
-        else:
-            print("Invalid task number.\n")
-    except ValueError:
-        print("Enter a valid number.\n")
+def delete_task():
+    """Delete the selected task."""
+    idx = listbox.curselection()
+    if not idx: return
+    task = tasks.pop(idx[0])
+    refresh_listbox()
+    messagebox.showinfo("Deleted", f"Task '{task['title']}' deleted!")
 
-def edit_task(tasks):
-    show_tasks(tasks)
-    if not tasks:
-        return
-    try:
-        idx = int(input("Enter task number to edit: "))
-        if 1 <= idx <= len(tasks):
-            task = tasks[idx-1]
-            new_title = input(f"Enter new title (leave blank to keep '{task['title']}'): ").strip()
-            if new_title:
-                task['title'] = new_title
-            
-            new_priority = input(f"Enter new priority (High/Medium/Low, leave blank to keep '{task['priority']}'): ").strip().capitalize()
-            if new_priority in ["High", "Medium", "Low"]:
-                task['priority'] = new_priority
-            
-            new_due = input(f"Enter new due date (YYYY-MM-DD, leave blank to keep '{task['due_date']}'): ").strip()
-            if new_due:
-                try:
-                    datetime.strptime(new_due, "%Y-%m-%d")
-                    task['due_date'] = new_due
-                except ValueError:
-                    print("Invalid date format. Keeping old due date.")
-            print("Task updated successfully!\n")
-        else:
-            print("Invalid task number.\n")
-    except ValueError:
-        print("Enter a valid number.\n")
+def toggle_done():
+    """Mark selected task as done/undone."""
+    idx = listbox.curselection()
+    if not idx: return
+    tasks[idx[0]]["done"] = not tasks[idx[0]]["done"]
+    refresh_listbox()
 
-def delete_task(tasks):
-    show_tasks(tasks)
-    if not tasks:
-        return
-    try:
-        idx = int(input("Enter task number to delete: "))
-        if 1 <= idx <= len(tasks):
-            removed = tasks.pop(idx-1)
-            print(f"Task '{removed['title']}' deleted!\n")
-        else:
-            print("Invalid task number.\n")
-    except ValueError:
-        print("Enter a valid number.\n")
+def edit_task():
+    """Edit selected task details."""
+    idx = listbox.curselection()
+    if not idx: return
+    task = tasks[idx[0]]
+    new_title = simpledialog.askstring("Edit Title", f"Edit title (current: {task['title']}):")
+    if new_title: task["title"] = new_title
+    new_priority = simpledialog.askstring("Edit Priority", f"Edit priority (High/Medium/Low, current: {task['priority']}):")
+    if new_priority in ["High", "Medium", "Low"]: task["priority"] = new_priority
+    new_due = simpledialog.askstring("Edit Due Date", f"Edit due date (YYYY-MM-DD, current: {task['due_date']}):")
+    if new_due:
+        try: datetime.strptime(new_due, "%Y-%m-%d"); task["due_date"]=new_due
+        except: messagebox.showwarning("Warning","Invalid date. Keeping old.")
+    refresh_listbox()
 
-def search_tasks(tasks):
-    keyword = input("Enter keyword to search: ").strip().lower()
-    results = [t for t in tasks if keyword in t['title'].lower()]
-    if results:
-        print("\nSearch Results:")
-        for idx, task in enumerate(results, start=1):
-            status = "✅" if task["done"] else "❌"
-            print(f"{idx}. {task['title']} [{status}] - Priority: {task['priority']} - Due: {task['due_date']}")
-        print()
-    else:
-        print("No matching tasks found.\n")
-
-def clear_tasks(tasks):
-    confirm = input("Are you sure you want to delete ALL tasks? (y/n): ").lower()
-    if confirm == "y":
+def clear_all_tasks():
+    """Delete all tasks after confirmation."""
+    if messagebox.askyesno("Clear All", "Are you sure you want to delete ALL tasks?"):
         tasks.clear()
-        print("All tasks cleared!\n")
+        refresh_listbox()
 
-def main():
-    tasks = load_tasks()
-    while True:
-        print("==== Enhanced To-Do List Manager ====")
-        print("1. View All Tasks")
-        print("2. View Pending Tasks")
-        print("3. View Completed Tasks")
-        print("4. Add Task")
-        print("5. Update Task Status")
-        print("6. Edit Task")
-        print("7. Delete Task")
-        print("8. Search Task")
-        print("9. Clear All Tasks")
-        print("10. Exit")
-        choice = input("Enter your choice (1-10): ").strip()
-
-        if choice == "1":
-            show_tasks(tasks, "all")
-        elif choice == "2":
-            show_tasks(tasks, "pending")
-        elif choice == "3":
-            show_tasks(tasks, "completed")
-        elif choice == "4":
-            add_task(tasks)
-        elif choice == "5":
-            update_task(tasks)
-        elif choice == "6":
-            edit_task(tasks)
-        elif choice == "7":
-            delete_task(tasks)
-        elif choice == "8":
-            search_tasks(tasks)
-        elif choice == "9":
-            clear_tasks(tasks)
-        elif choice == "10":
-            save_tasks(tasks)
-            print("Tasks saved. Goodbye!")
-            break
-        else:
-            print("Invalid choice. Enter a number 1-10.\n")
-
-if __name__ == "__main__":
-    main()
-
-=======
-
+def search_task():
+    """Search tasks by keyword."""
+    keyword = simpledialog.askstring("Search Task", "Enter keyword to search:")
+    if not keyword: return
     listbox.delete(0, tk.END)
     for idx, task in enumerate(tasks):
         if keyword.lower() in task["title"].lower():
             status = "✅" if task["done"] else "❌"
+            priority = task.get("priority","Medium")
+            due = task.get("due_date","N/A")
+            text = f"{idx+1}. {task['title']} [{status}] - Priority: {priority} - Due: {due}"
+            listbox.insert(tk.END,text)
+            listbox.itemconfig(tk.END,{'fg':PRIORITY_COLOR.get(priority,"black")})
 
+# ---------------- Initialize ---------------- #
+tasks = load_tasks()
+dark_mode = False
+root = tk.Tk()
+root.title("Pro To-Do Manager with Dark Mode & Sorting")
+root.geometry("750x550")
 
 # Listbox
 listbox = tk.Listbox(root, width=100, height=20)
 listbox.pack(pady=10)
 
+# Buttons
+frame = tk.Frame(root)
+frame.pack(pady=5)
+
+buttons = [
+    ("Add Task", add_task), ("Delete Task", delete_task), ("Mark Done/Undone", toggle_done),
+    ("Edit Task", edit_task), ("Clear All", clear_all_tasks), ("Search Task", search_task),
+    ("Show All", lambda: refresh_listbox("all")), ("Show Pending", lambda: refresh_listbox("pending")),
+    ("Show Completed", lambda: refresh_listbox("completed")), ("Sort by Priority", lambda: refresh_listbox("all","priority")),
+    ("Sort by Due Date", lambda: refresh_listbox("all","due_date")), ("Toggle Dark Mode", toggle_dark_mode),
+    ("Save & Exit", lambda: [save_tasks(), root.destroy()])
+]
+
+for i, (text, cmd) in enumerate(buttons):
+    tk.Button(frame, text=text, command=cmd, width=18).grid(row=i//5, column=i%5, padx=5, pady=5)
+
+refresh_listbox()
+root.mainloop()
